@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl, {
   type ExpressionSpecification,
   type GeoJSONSource,
@@ -103,6 +103,19 @@ export function MapView(props: MapViewProps) {
   const readyRef = useRef(false);
   const hoveredRef = useRef<number | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
+
+  /**
+   * Bumped every time sources and layers are (re)installed — on first load and
+   * after each basemap switch.
+   *
+   * The effects below push data, visibility and selection into the map, and
+   * they no-op while the style is not ready. Their own dependencies are the
+   * props, which may well have stopped changing by then: feeds resolve once and
+   * hold, so a response that lands before the map's `load` event would be
+   * dropped and never re-applied, leaving every overlay silently empty. Taking
+   * this as a dependency re-runs them against the freshly installed style.
+   */
+  const [styleEpoch, setStyleEpoch] = useState(0);
 
   // Callbacks change identity on every render; a ref keeps the map's event
   // handlers pointing at the current ones without rebinding them each time.
@@ -414,6 +427,7 @@ export function MapView(props: MapViewProps) {
     map.on('load', () => {
       installLayers(map);
       readyRef.current = true;
+      setStyleEpoch((epoch) => epoch + 1);
       props.onMapReady?.(map);
     });
 
@@ -523,10 +537,14 @@ export function MapView(props: MapViewProps) {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
 
+    // Sources and layers do not survive setStyle, so mark the style not-ready
+    // until they are reinstalled; the epoch bump then re-applies all state.
+    readyRef.current = false;
     map.setStyle(BASEMAPS[basemap].style);
     map.once('styledata', () => {
       installLayers(map);
       readyRef.current = true;
+      setStyleEpoch((epoch) => epoch + 1);
     });
   }, [basemap, installLayers]);
 
@@ -540,31 +558,31 @@ export function MapView(props: MapViewProps) {
 
   useEffect(() => {
     setData(SRC.fires, firesToGeoJson(props.fires));
-  }, [props.fires, setData, basemap]);
+  }, [props.fires, setData, styleEpoch]);
 
   useEffect(() => {
     setData(SRC.perimeters, perimetersToGeoJson(props.perimeters));
-  }, [props.perimeters, setData, basemap]);
+  }, [props.perimeters, setData, styleEpoch]);
 
   useEffect(() => {
     setData(SRC.smoke, smokeToGeoJson(props.smoke));
-  }, [props.smoke, setData, basemap]);
+  }, [props.smoke, setData, styleEpoch]);
 
   useEffect(() => {
     setData(SRC.heat, alertsToGeoJson(props.heatAlerts));
-  }, [props.heatAlerts, setData, basemap]);
+  }, [props.heatAlerts, setData, styleEpoch]);
 
   useEffect(() => {
     setData(SRC.fireDanger, alertsToGeoJson(props.fireAlerts));
-  }, [props.fireAlerts, setData, basemap]);
+  }, [props.fireAlerts, setData, styleEpoch]);
 
   useEffect(() => {
     setData(SRC.airQuality, airQualityToGeoJson(props.airQuality));
-  }, [props.airQuality, setData, basemap]);
+  }, [props.airQuality, setData, styleEpoch]);
 
   useEffect(() => {
     setData(SRC.detections, detectionsToGeoJson(props.detections));
-  }, [props.detections, setData, basemap]);
+  }, [props.detections, setData, styleEpoch]);
 
   // --- Visibility and opacity --------------------------------------------
   const { visibility, opacity } = props;
@@ -635,7 +653,7 @@ export function MapView(props: MapViewProps) {
     } else {
       show('gibs-imagery', false);
     }
-  }, [visibility, opacity, basemap]);
+  }, [visibility, opacity, styleEpoch]);
 
   // --- Selection ----------------------------------------------------------
   const selectedFireId = props.selectedFireId;
@@ -653,7 +671,7 @@ export function MapView(props: MapViewProps) {
     const id = hashId(selectedFireId);
     map.setFeatureState({ source: SRC.fires, id }, { selected: true });
     previousSelection.current = id;
-  }, [selectedFireId, props.fires, basemap]);
+  }, [selectedFireId, props.fires, styleEpoch]);
 
   return <div ref={containerRef} className="map-canvas" role="application" aria-label="Wildfire map" />;
 }
