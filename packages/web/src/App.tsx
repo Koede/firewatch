@@ -7,6 +7,7 @@ import { IncidentList } from './components/IncidentList';
 import { LayerPanel } from './components/LayerPanel';
 import { Legend } from './components/Legend';
 import { StatusBar } from './components/StatusBar';
+import { PhoneButton } from './components/PhoneButton';
 import { useFirewatchData } from './lib/useFirewatchData';
 import { useMapState } from './lib/useMapState';
 
@@ -82,6 +83,57 @@ export function App() {
   }, [layersOpen, state.selectedFireId, setSelectedFireId]);
 
   const incidentsUsingFallback = data.health.incidents?.usingFallback ?? false;
+
+  const phoneMenuItems = [
+    {
+      id: 'california',
+      label: 'California',
+      icon: '🔥',
+      action: () => {
+        const newPosition = { ...state.position, lat: 37.7749, lng: -120.4194, zoom: 6 };
+        setPosition(newPosition);
+      },
+    },
+    {
+      id: 'oregon',
+      label: 'Oregon',
+      icon: '🌲',
+      action: () => {
+        const newPosition = { ...state.position, lat: 43.8041, lng: -120.5542, zoom: 6 };
+        setPosition(newPosition);
+      },
+    },
+    {
+      id: 'washington',
+      label: 'Washington',
+      icon: '⛰',
+      action: () => {
+        const newPosition = { ...state.position, lat: 47.7511, lng: -120.7401, zoom: 6 };
+        setPosition(newPosition);
+      },
+    },
+    {
+      id: 'add-site',
+      label: 'Add Site',
+      icon: '➕',
+      action: () => {
+        const siteUrl = prompt('Enter site URL or coordinates (lat,lng)');
+        if (siteUrl) {
+          const coords = siteUrl.split(',');
+          if (coords.length === 2) {
+            const lat = parseFloat(coords[0].trim());
+            const lng = parseFloat(coords[1].trim());
+            if (!isNaN(lat) && !isNaN(lng)) {
+              const newPosition = { ...state.position, lat, lng, zoom: 7 };
+              setPosition(newPosition);
+            } else {
+              alert('Invalid coordinates. Please use lat,lng format.');
+            }
+          }
+        }
+      },
+    },
+  ];
 
   return (
     <div className="app">
@@ -180,6 +232,8 @@ export function App() {
               isSampleData={incidentsUsingFallback}
             />
           )}
+
+          <PhoneButton items={phoneMenuItems} />
         </main>
       </div>
     </div>
