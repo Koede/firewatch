@@ -15,6 +15,7 @@ import {
   getPerimeters,
   getSmoke,
 } from './dataService.js';
+import { parseShoppingUrl, parseMultipleUrls } from './shoppingListParser.js';
 
 /**
  * Firewatch API server.
@@ -30,6 +31,7 @@ const app = express();
 
 app.use(cors({ origin: CONFIG.corsOrigin }));
 app.use(compression());
+app.use(express.json());
 app.disable('x-powered-by');
 
 /** Log each API call with its duration, for spotting slow upstreams. */
@@ -173,6 +175,47 @@ app.get(
       return;
     }
     res.json(await getDetections(parsed.bbox));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Shopping List
+// ---------------------------------------------------------------------------
+
+app.post(
+  '/api/shopping-list/parse',
+  handle(async (req, res) => {
+    let body: unknown;
+    try {
+      body = req.body;
+    } catch {
+      res.status(400).json({ error: 'Invalid request body' });
+      return;
+    }
+
+    if (typeof body !== 'object' || body === null) {
+      res.status(400).json({ error: 'Request body must be a JSON object' });
+      return;
+    }
+
+    const { urls } = body as Record<string, unknown>;
+    if (!Array.isArray(urls) || urls.some((u) => typeof u !== 'string')) {
+      res.status(400).json({ error: 'urls must be an array of strings' });
+      return;
+    }
+
+    if (urls.length === 0) {
+      res.status(400).json({ error: 'urls array must not be empty' });
+      return;
+    }
+
+    if (urls.length > 10) {
+      res.status(400).json({ error: 'Maximum 10 URLs per request' });
+      return;
+    }
+
+    const result = await parseMultipleUrls(urls);
+    res.json(result);
   }),
 );
 

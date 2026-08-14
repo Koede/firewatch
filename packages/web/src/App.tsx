@@ -7,6 +7,7 @@ import { IncidentList } from './components/IncidentList';
 import { LayerPanel } from './components/LayerPanel';
 import { Legend } from './components/Legend';
 import { StatusBar } from './components/StatusBar';
+import { ShoppingList } from './components/ShoppingList';
 import { useFirewatchData } from './lib/useFirewatchData';
 import { useMapState } from './lib/useMapState';
 
@@ -27,6 +28,7 @@ export function App() {
   const [layersOpen, setLayersOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const [activeView, setActiveView] = useState<'map' | 'shopping-list'>('map');
 
   const selectedFire = useMemo(
     () => data.fires.find((fire) => fire.id === state.selectedFireId) ?? null,
@@ -86,101 +88,118 @@ export function App() {
   return (
     <div className="app">
       <header className="app-header">
+        {activeView === 'map' ? (
+          <>
+            <button
+              className="icon-button sidebar-toggle"
+              onClick={() => setSidebarOpen((open) => !open)}
+              aria-label={sidebarOpen ? 'Hide incident list' : 'Show incident list'}
+            >
+              ☰
+            </button>
+
+            <div className="brand">
+              <span className="brand-mark" aria-hidden>
+                🔥
+              </span>
+              <div>
+                <h1>Firewatch</h1>
+                <p>Live wildfire, smoke and air quality map</p>
+              </div>
+            </div>
+
+            <StatusBar
+              health={data.health}
+              lastRefreshedAt={data.lastRefreshedAt}
+              refreshing={data.refreshing}
+              onRefresh={data.refresh}
+            />
+
+            <button
+              className={`button layers-button${layersOpen ? ' active' : ''}`}
+              onClick={() => setLayersOpen((open) => !open)}
+              aria-expanded={layersOpen}
+            >
+              Layers
+            </button>
+          </>
+        ) : null}
+
         <button
-          className="icon-button sidebar-toggle"
-          onClick={() => setSidebarOpen((open) => !open)}
-          aria-label={sidebarOpen ? 'Hide incident list' : 'Show incident list'}
+          className={`button view-toggle${activeView === 'shopping-list' ? ' active' : ''}`}
+          onClick={() => setActiveView(activeView === 'map' ? 'shopping-list' : 'map')}
         >
-          ☰
-        </button>
-
-        <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            🔥
-          </span>
-          <div>
-            <h1>Firewatch</h1>
-            <p>Live wildfire, smoke and air quality map</p>
-          </div>
-        </div>
-
-        <StatusBar
-          health={data.health}
-          lastRefreshedAt={data.lastRefreshedAt}
-          refreshing={data.refreshing}
-          onRefresh={data.refresh}
-        />
-
-        <button
-          className={`button layers-button${layersOpen ? ' active' : ''}`}
-          onClick={() => setLayersOpen((open) => !open)}
-          aria-expanded={layersOpen}
-        >
-          Layers
+          {activeView === 'map' ? '🛒 Shopping List' : '🔥 Firewatch Map'}
         </button>
       </header>
 
       <div className="app-body">
-        {sidebarOpen && (
-          <nav className="sidebar">
-            <IncidentList
-              fires={data.fires}
-              selectedFireId={state.selectedFireId}
-              onSelect={handleSelectFromList}
-              isSampleData={incidentsUsingFallback}
-              loading={data.loading}
-            />
-          </nav>
+        {activeView === 'map' ? (
+          <>
+            {sidebarOpen && (
+              <nav className="sidebar">
+                <IncidentList
+                  fires={data.fires}
+                  selectedFireId={state.selectedFireId}
+                  onSelect={handleSelectFromList}
+                  isSampleData={incidentsUsingFallback}
+                  loading={data.loading}
+                />
+              </nav>
+            )}
+
+            <main className="map-area">
+              <MapView
+                position={state.position}
+                basemap={state.basemap}
+                visibility={state.visibility}
+                opacity={state.opacity}
+                fires={data.fires}
+                perimeters={data.perimeters}
+                smoke={data.smoke}
+                heatAlerts={data.heatAlerts}
+                fireAlerts={data.fireAlerts}
+                airQuality={data.airQuality}
+                detections={data.detections}
+                selectedFireId={state.selectedFireId}
+                onSelectFire={setSelectedFireId}
+                onPositionChange={setPosition}
+                onMapReady={handleMapReady}
+              />
+
+              <Legend
+                visibility={state.visibility}
+                collapsed={legendCollapsed}
+                onToggleCollapsed={() => setLegendCollapsed((value) => !value)}
+              />
+
+              {layersOpen && (
+                <LayerPanel
+                  basemap={state.basemap}
+                  visibility={state.visibility}
+                  opacity={state.opacity}
+                  health={data.health}
+                  onBasemapChange={setBasemap}
+                  onToggleLayer={toggleLayer}
+                  onOpacityChange={setLayerOpacity}
+                  onClose={() => setLayersOpen(false)}
+                />
+              )}
+
+              {selectedFire && (
+                <FireDetailPanel
+                  fire={selectedFire}
+                  perimeter={selectedPerimeter}
+                  onClose={() => setSelectedFireId(null)}
+                  onZoomTo={(fire) => flyToFire(mapRef.current, fire)}
+                  isSampleData={incidentsUsingFallback}
+                />
+              )}
+            </main>
+          </>
+        ) : (
+          <ShoppingList />
         )}
-
-        <main className="map-area">
-          <MapView
-            position={state.position}
-            basemap={state.basemap}
-            visibility={state.visibility}
-            opacity={state.opacity}
-            fires={data.fires}
-            perimeters={data.perimeters}
-            smoke={data.smoke}
-            heatAlerts={data.heatAlerts}
-            fireAlerts={data.fireAlerts}
-            airQuality={data.airQuality}
-            detections={data.detections}
-            selectedFireId={state.selectedFireId}
-            onSelectFire={setSelectedFireId}
-            onPositionChange={setPosition}
-            onMapReady={handleMapReady}
-          />
-
-          <Legend
-            visibility={state.visibility}
-            collapsed={legendCollapsed}
-            onToggleCollapsed={() => setLegendCollapsed((value) => !value)}
-          />
-
-          {layersOpen && (
-            <LayerPanel
-              basemap={state.basemap}
-              visibility={state.visibility}
-              opacity={state.opacity}
-              health={data.health}
-              onBasemapChange={setBasemap}
-              onToggleLayer={toggleLayer}
-              onOpacityChange={setLayerOpacity}
-              onClose={() => setLayersOpen(false)}
-            />
-          )}
-
-          {selectedFire && (
-            <FireDetailPanel
-              fire={selectedFire}
-              perimeter={selectedPerimeter}
-              onClose={() => setSelectedFireId(null)}
-              onZoomTo={(fire) => flyToFire(mapRef.current, fire)}
-              isSampleData={incidentsUsingFallback}
-            />
-          )}
-        </main>
       </div>
     </div>
   );

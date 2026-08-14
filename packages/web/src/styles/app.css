@@ -153,6 +153,10 @@ body {
   flex-shrink: 0;
 }
 
+.view-toggle {
+  flex-shrink: 0;
+}
+
 .icon-button {
   display: inline-flex;
   align-items: center;
